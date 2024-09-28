@@ -39,38 +39,92 @@ namespace CarnotExcel
         [ExcelFunction(Name = "PROCURA.CARNOT", Description = "Função para uma busca aproximada")]
         public static object[,] NGramsDistance([ExcelArgument(Name = "Elemento buscado", Description = "Elemento que será buscado na outra matriz")] string searchValue, [ExcelArgument(Name = "Matriz", Description = "Matriz onde será procurado")] object[,] dataMatrix)
         {
-            List<double> distances = new List<double>();
+            List<double> proximity = new List<double>();
 
             object[,] result = new object[1, 2];
 
             for (int row = 0; row < dataMatrix.GetLength(0); row++)
             {
-                distances.Add(CompareSophisticated(searchValue, dataMatrix[row, 0].ToString()));
+                proximity.Add(CompareTextAdvanced(searchValue, dataMatrix[row, 0].ToString()));
             }
 
-            int index = distances.IndexOf(distances.Max());
+            int index = proximity.IndexOf(proximity.Max());
             result[0, 0] = dataMatrix[index, 0];
-            result[0, 1] = distances.Max();
-            
+            result[0, 1] = proximity.Max();
+
             return result;
         }
 
-        [ExcelFunction(Description = "Retorna uma matriz 2D de valores.")]
-        public static object[,] GenerateMatrix(int rows, int cols)
+        public static double CompareTextAdvanced(string text1, string text2)
         {
-            object[,] result = new object[rows, cols];
+            // Preprocessar os textos (remover parênteses, ignorar maiúsculas/minúsculas)
+            string processedText1 = Preprocess(text1);
+            string processedText2 = Preprocess(text2);
 
-            for (int i = 0; i < rows; i++)
+            // Separar os textos em tokens (palavras)
+            var tokens1 = ExtractRelevantWords(processedText1);
+            var tokens2 = ExtractRelevantWords(processedText2);
+
+            // Comparar as palavras principais com Levenshtein e Jaro-Winkler
+            double totalSimilarity = 0;
+            int totalWeight = 0;
+
+            for (int i = 0; i < Math.Max(tokens1.Count, tokens2.Count); i++)
             {
-                for (int j = 0; j < cols; j++)
+                string token1 = i < tokens1.Count ? tokens1[i] : "";
+                string token2 = i < tokens2.Count ? tokens2[i] : "";
+
+                // Ponderar a primeira palavra como a mais importante (nome principal)
+                int weight = (i == 0) ? 5 : 1; // Dar peso 5 para a primeira palavra (nome principal)
+                totalWeight += weight;
+
+                // Calcular a similaridade combinada usando Levenshtein e Jaro-Winkler
+                double levenshteinSim = (1 - (double)LevenshteinDistance(token1, token2) / Math.Max(token1.Length, token2.Length));
+                double jaroWinklerSim = JaroWinklerDistance(token1, token2);
+
+                // Combinar as duas similaridades com pesos iguais
+                double combinedSim = (levenshteinSim + jaroWinklerSim) / 2;
+
+                // Adicionar à similaridade total, aplicando o peso
+                totalSimilarity += combinedSim * weight;
+            }
+
+            // Retornar a similaridade como percentual
+            return (totalSimilarity / totalWeight);
+        }
+
+        // Função de pré-processamento (remover parênteses, ignorar maiúsculas/minúsculas)
+        private static string Preprocess(string text)
+        {
+            return text.ToLower().Replace("(", "").Replace(")", "").Replace(",", "");
+        }
+
+        // Função de distância de Levenshtein
+        private static int LevenshteinDistance(string a, string b)
+        {
+            int n = a.Length;
+            int m = b.Length;
+            int[,] dp = new int[n + 1, m + 1];
+
+            for (int i = 0; i <= n; i++)
+                dp[i, 0] = i;
+
+            for (int j = 0; j <= m; j++)
+                dp[0, j] = j;
+
+            for (int i = 1; i <= n; i++)
+            {
+                for (int j = 1; j <= m; j++)
                 {
-                    result[i, j] = (i + 1) * (j + 1);
+                    int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+                    dp[i, j] = Math.Min(Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1), dp[i - 1, j - 1] + cost);
                 }
             }
 
-            return result;
+            return dp[n, m];
         }
 
+        // Função que calcula a distância de Jaro-Winkler
         public static double JaroWinklerDistance(string s1, string s2)
         {
             double jaroDistance = JaroDistance(s1, s2);
@@ -89,6 +143,7 @@ namespace CarnotExcel
             return jaroDistance + (0.1 * prefixLength * (1 - jaroDistance));
         }
 
+        // Função que implementa a distância de Jaro
         private static double JaroDistance(string s1, string s2)
         {
             int s1_len = s1.Length;
@@ -142,69 +197,13 @@ namespace CarnotExcel
             return ((double)matches / s1_len + (double)matches / s2_len + (double)(matches - transpositions) / matches) / 3.0;
         }
 
-        private static int LevenshteinDistance(string a, string b)
+        // Função auxiliar para remover palavras irrelevantes como "State", "of", "the"
+        private static List<string> ExtractRelevantWords(string text)
         {
-            a = a.ToLower();
-            b = b.ToLower();
-
-            int n = a.Length;
-            int m = b.Length;
-            int[,] dp = new int[n + 1, m + 1];
-
-            for (int i = 0; i <= n; i++)
-            {
-                dp[i, 0] = i;
-            }
-            for (int j = 0; j <= m; j++)
-            {
-                dp[0, j] = j;
-            }
-
-            for (int i = 1; i <= n; i++)
-            {
-                for (int j = 1; j <= m; j++)
-                {
-                    int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
-                    dp[i, j] = Math.Min(
-                        Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
-                        dp[i - 1, j - 1] + cost);
-                }
-            }
-
-            return dp[n, m];
-        }
-
-        public static double CompareSophisticated(string text1, string text2)
-        {
-            text1 = text1.ToLower();
-            text2 = text2.ToLower();
-
-            string processedText1 = Preprocess(text1);
-            string processedText2 = Preprocess(text2);
-
-            var tokens1 = processedText1.Split(' ');
-            var tokens2 = processedText2.Split(' ');
-
-            double totalSimilarity = 0;
-            int totalWeight = 0;
-
-            for (int i = 0; i < Math.Max(tokens1.Length, tokens2.Length); i++)
-            {
-                string token1 = i < tokens1.Length ? tokens1[i] : "";
-                string token2 = i < tokens2.Length ? tokens2[i] : "";
-
-                int weight = (i == 0) ? 3 : 1;
-                totalWeight += weight;
-
-                totalSimilarity += (1 - (double)LevenshteinDistance(token1, token2) / Math.Max(token1.Length, token2.Length)) * weight;
-            }
-
-            return (totalSimilarity / totalWeight);
-        }
-
-        private static string Preprocess(string text)
-        {
-            return text.ToLower().Replace("(", "").Replace(")", "").Replace(",", "");
+            string[] commonWords = { "of", "the", "and", "state", "plurinational" };
+            return text.Split(new char[] { ' ', ',', '(', ')' }, StringSplitOptions.RemoveEmptyEntries)
+                       .Where(word => !commonWords.Contains(word.ToLower()))
+                       .ToList();
         }
     }
 }

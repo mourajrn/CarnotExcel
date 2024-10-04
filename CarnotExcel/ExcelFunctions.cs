@@ -12,7 +12,7 @@ namespace CarnotExcel
         public void AutoClose() => IntelliSenseServer.Uninstall();
 
         [ExcelFunction(Name = "PRIMAIÚSCULA.CARNOT", Description = "Função para colocar a primeira letra de cada palavra em maiúsculo ignorando algumas palavras")]
-        public static string capitalize([ExcelArgument(Name = "Texto", Description = "Texto para aplicar a função")] string name)
+        public static string Capitalize([ExcelArgument(Name = "Texto", Description = "Texto para aplicar a função")] string name)
         {
             string lowerString = name.ToLower();
 
@@ -36,8 +36,8 @@ namespace CarnotExcel
             return result.Trim();
         }
 
-        [ExcelFunction(Name = "PROCURA.CARNOT", Description = "Função para uma busca aproximada")]
-        public static object[,] NGramsDistance([ExcelArgument(Name = "Elemento buscado", Description = "Elemento que será buscado na outra matriz")] string searchValue, [ExcelArgument(Name = "Matriz", Description = "Matriz onde será procurado")] object[,] dataMatrix)
+        [ExcelFunction(Name = "PROCURA.CARNOT", Description = "Função para realizar uma busca aproximada em uma matriz, identificando o valor mais semelhante ao termo buscado e indicando seu grau de similaridade.")]
+        public static object[,] FuzzyMatchSearch([ExcelArgument(Name = "Valor a ser buscado", Description = "O valor que você deseja encontrar de forma aproximada na matriz. Pode ser um texto ou uma palavra-chave que esteja presente na matriz de dados.")] string searchValue, [ExcelArgument(Name = "Matriz de Dados", Description = "Matriz (intervalo de células) onde será realizada a busca pelo valor mais semelhante ao valor informado.")] object[,] dataMatrix)
         {
             List<double> proximity = new List<double>();
 
@@ -57,15 +57,9 @@ namespace CarnotExcel
 
         public static double CompareTextAdvanced(string text1, string text2)
         {
-            // Preprocessar os textos (remover parênteses, ignorar maiúsculas/minúsculas)
-            string processedText1 = Preprocess(text1);
-            string processedText2 = Preprocess(text2);
+            var tokens1 = ExtractRelevantWords(text1);
+            var tokens2 = ExtractRelevantWords(text2);
 
-            // Separar os textos em tokens (palavras)
-            var tokens1 = ExtractRelevantWords(processedText1);
-            var tokens2 = ExtractRelevantWords(processedText2);
-
-            // Comparar as palavras principais com Levenshtein e Jaro-Winkler
             double totalSimilarity = 0;
             int totalWeight = 0;
 
@@ -74,29 +68,18 @@ namespace CarnotExcel
                 string token1 = i < tokens1.Count ? tokens1[i] : "";
                 string token2 = i < tokens2.Count ? tokens2[i] : "";
 
-                // Ponderar a primeira palavra como a mais importante (nome principal)
-                int weight = (i == 0) ? 5 : 1; // Dar peso 5 para a primeira palavra (nome principal)
+                int weight = (i == 0) ? 5 : 1;
                 totalWeight += weight;
 
-                // Calcular a similaridade combinada usando Levenshtein e Jaro-Winkler
-                double levenshteinSim = (1 - (double)LevenshteinDistance(token1, token2) / Math.Max(token1.Length, token2.Length));
+                double levenshteinSim = 1 - (double)LevenshteinDistance(token1, token2) / Math.Max(token1.Length, token2.Length);
                 double jaroWinklerSim = JaroWinklerDistance(token1, token2);
 
-                // Combinar as duas similaridades com pesos iguais
                 double combinedSim = (levenshteinSim + jaroWinklerSim) / 2;
 
-                // Adicionar à similaridade total, aplicando o peso
                 totalSimilarity += combinedSim * weight;
             }
 
-            // Retornar a similaridade como percentual
             return (totalSimilarity / totalWeight);
-        }
-
-        // Função de pré-processamento (remover parênteses, ignorar maiúsculas/minúsculas)
-        private static string Preprocess(string text)
-        {
-            return text.ToLower().Replace("(", "").Replace(")", "").Replace(",", "");
         }
 
         // Função de distância de Levenshtein
@@ -124,12 +107,10 @@ namespace CarnotExcel
             return dp[n, m];
         }
 
-        // Função que calcula a distância de Jaro-Winkler
         public static double JaroWinklerDistance(string s1, string s2)
         {
             double jaroDistance = JaroDistance(s1, s2);
 
-            // Penalização para strings curtas
             int prefixLength = 0;
             for (int i = 0; i < Math.Min(s1.Length, s2.Length); i++)
             {
@@ -138,12 +119,11 @@ namespace CarnotExcel
                 else
                     break;
             }
-            prefixLength = Math.Min(4, prefixLength); // O prefixo máximo considerado é de 4 caracteres
+            prefixLength = Math.Min(4, prefixLength);
 
             return jaroDistance + (0.1 * prefixLength * (1 - jaroDistance));
         }
 
-        // Função que implementa a distância de Jaro
         private static double JaroDistance(string s1, string s2)
         {
             int s1_len = s1.Length;
@@ -197,7 +177,6 @@ namespace CarnotExcel
             return ((double)matches / s1_len + (double)matches / s2_len + (double)(matches - transpositions) / matches) / 3.0;
         }
 
-        // Função auxiliar para remover palavras irrelevantes como "State", "of", "the"
         private static List<string> ExtractRelevantWords(string text)
         {
             string[] commonWords = { "of", "the", "and", "state", "plurinational" };

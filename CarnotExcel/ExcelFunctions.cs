@@ -3,6 +3,7 @@ using ExcelDna.IntelliSense;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace CarnotExcel
 {
@@ -11,29 +12,46 @@ namespace CarnotExcel
         public void AutoOpen() => IntelliSenseServer.Install();
         public void AutoClose() => IntelliSenseServer.Uninstall();
 
-        [ExcelFunction(Name = "PRIMAIÚSCULA.CARNOT", Description = "Função para colocar a primeira letra de cada palavra em maiúsculo ignorando algumas palavras")]
-        public static string Capitalize([ExcelArgument(Name = "Texto", Description = "Texto para aplicar a função")] string name)
+        [ExcelFunction(Name = "PRI.MAIÚSCULA.CARNOT", Description = "Função para colocar a primeira letra de cada palavra em maiúsculo ignorando algumas palavras")]
+        public static string Capitalize([ExcelArgument(Name = "Texto", Description = "Texto para aplicar a função")] string name, [ExcelArgument(Name = "Palavras ignoradas", Description = "Lista de palavras adicionais aos casos padrões separadas por vírgula que serão ignoradas")] string wordsToIgnoreString = null)
         {
-            string lowerString = name.ToLower();
-
-            string[] words = lowerString.Split(' ');
-
-            string[] wordsToIgnore = new string[]
+            if (string.IsNullOrEmpty(wordsToIgnoreString))
             {
-                "a", "o", "as", "os", "de", "de", "das", "do", "da", "e", "ou", "para", "por", "no", "na", "nos", "nas", "dos"
-            };
-
-            string result = "";
-
-            foreach (string word in words)
+                wordsToIgnoreString = "a,o,as,os,de,das,do,dos,da,e,ou,para,por,no,na,nos,nas,à";
+            }
+            else
             {
-                if (Array.IndexOf(wordsToIgnore, word) > -1)
-                    result += $"{word} ";
-                else
-                    result += $"{word[0].ToString().ToUpper()}{word.Substring(1)} ";
+                wordsToIgnoreString = "a,o,as,os,de,das,do,dos,da,e,ou,para,por,no,na,nos,nas,à," + wordsToIgnoreString.ToLower();
             }
 
-            return result.Trim();
+            string lowerString = name.ToLower();
+
+            string[] words = lowerString.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            string[] wordsToIgnore = wordsToIgnoreString.Split(',');
+
+            StringBuilder result = new StringBuilder();
+
+            for (int i = 0; i < words.Length; i++)
+            {
+                string word = words[i];
+
+                if (Array.IndexOf(wordsToIgnore, word) > -1 && i != 0)
+                {
+                    result.Append(word);
+                }
+                else
+                {
+                    result.Append(char.ToUpper(word[0]) + word.Substring(1));
+                }
+
+                if (i < words.Length - 1)
+                {
+                    result.Append(" ");
+                }
+            }
+
+            return result.ToString();
         }
 
         [ExcelFunction(Name = "PROCURA.CARNOT", Description = "Função para realizar uma busca aproximada em uma matriz, identificando o valor mais semelhante ao termo buscado e indicando seu grau de similaridade.")]
